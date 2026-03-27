@@ -1,0 +1,32 @@
+<idea-plugin>
+    <id>com.royal.PocketMineAPI</id>
+    <name>PocketMineAPI</name>
+    <vendor url="https://github.com/pmmp/PocketMine-MP">Royal</vendor>
+
+    <description><![CDATA[
+    Gestionnaire de releases PocketMine-MP : téléchargement du .phar, extraction via PHP CLI,
+    puis enregistrement automatique comme include path PhpStorm pour l'autocomplétion.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.jetbrains.php</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+
+        <applicationService
+                serviceImplementation="com.royal.pocketmineapi.service.VersionSettingsService"/>
+
+        <notificationGroup
+                id="PocketMine Notifications"
+                displayType="BALLOON"
+                isLogByDefault="true"/>
+
+        <toolWindow
+                id="PocketMine Versions"
+                anchor="right"
+                factoryClass="com.royal.pocketmineapi.ui.VersionToolWindowFactory"
+                icon="/META-INF/pluginIcon.svg"
+                canCloseContents="false"/>
+
+    </extensions>
+</idea-plugin>
