@@ -4,8 +4,8 @@
     <vendor url="https://github.com/pmmp/PocketMine-MP">Royal</vendor>
 
     <description><![CDATA[
-    Gestionnaire de releases PocketMine-MP : téléchargement du .phar, extraction via PHP CLI,
-    puis enregistrement automatique comme include path PhpStorm pour l'autocomplétion.
+    PocketMine-MP release manager: downloads the .phar file, extracts it via PHP CLI,
+    then automatically registers it as a PhpStorm include path for autocompletion.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
