@@ -29,11 +29,11 @@ internal class PhpIncludePathService {
 
             LocalFileSystem.getInstance().refreshAndFindFileByPath(extractedPath)
 
-            logger.info("Include path PhpStorm mis a jour : $extractedPath")
+            logger.info("PhpStorm include path updated: $extractedPath")
 
         } catch (e: Exception) {
-            logger.warn("Impossible de mettre a jour l'include path PhpStorm", e)
-            throw IllegalStateException("Erreur enregistrement include path : ${e.message}", e)
+            logger.warn("Unable to update PhpStorm include path", e)
+            throw IllegalStateException("Include path registration error: ${e.message}", e)
         }
     }
 
@@ -46,7 +46,7 @@ internal class PhpIncludePathService {
             manager.includePath = cleaned
             logger.info("Include paths PocketMine retires")
         } catch (e: Exception) {
-            logger.warn("Impossible de retirer les include paths", e)
+            logger.warn("Unable to remove include paths", e)
         }
     }
 }

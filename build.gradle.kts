@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.royal"
-version = "1.0-stable"
+version = "1.2-stable"
 
 repositories {
     mavenCentral()

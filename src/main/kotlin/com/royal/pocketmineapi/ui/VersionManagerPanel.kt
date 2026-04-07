@@ -48,7 +48,7 @@ class VersionManagerPanel(private val project: Project) : JPanel(BorderLayout())
         cellRenderer = AssetListCellRenderer()
     }
 
-    private val statusLabel = JBLabel("Aucune version active.").apply {
+    private val statusLabel = JBLabel("No active version.").apply {
         border = BorderFactory.createEmptyBorder(4, 8, 4, 8)
     }
 
@@ -114,7 +114,7 @@ class VersionManagerPanel(private val project: Project) : JPanel(BorderLayout())
     private fun fetchReleases() {
         val s = settings.getState()
         fetchButton.isEnabled = false
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Chargement des releases GitHub...", false) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "Loading GitHub releases...", false) {
             override fun run(indicator: ProgressIndicator) {
                 indicator.isIndeterminate = true
                 try {
@@ -128,14 +128,14 @@ class VersionManagerPanel(private val project: Project) : JPanel(BorderLayout())
                         assetListModel.clear()
                         releases.forEach { releaseListModel.addElement(it) }
                         fetchButton.isEnabled = true
-                        statusLabel.text = if (releases.isEmpty()) "Aucune release trouvee."
+                        statusLabel.text = if (releases.isEmpty()) "No release found."
                         else "${releases.size} release(s) chargee(s)."
                     }
                 } catch (ex: Exception) {
-                    logger.warn("Erreur fetch releases", ex)
+                    logger.warn("Release fetch error", ex)
                     ApplicationManager.getApplication().invokeLater {
                         fetchButton.isEnabled = true
-                        notify("Erreur lors du chargement : ${ex.message}", NotificationType.ERROR)
+                        notify("Loading error: ${ex.message}", NotificationType.ERROR)
                     }
                 }
             }
@@ -176,7 +176,7 @@ class VersionManagerPanel(private val project: Project) : JPanel(BorderLayout())
                     val phpExe = resolvePhpExecutable(indicator, downloadDir)
 
 
-                    indicator.text = "Telechargement de ${asset.name}..."
+                    indicator.text = "Downloading ${asset.name}..."
                     val pharFile: Path = githubService.downloadAsset(asset, downloadDir)
 
 
@@ -205,10 +205,10 @@ class VersionManagerPanel(private val project: Project) : JPanel(BorderLayout())
                         )
                     }
                 } catch (ex: Exception) {
-                    logger.warn("Erreur download/extract", ex)
+                    logger.warn("Download/extract error", ex)
                     ApplicationManager.getApplication().invokeLater {
                         downloadButton.isEnabled = true
-                        notify("Erreur : ${ex.message}", NotificationType.ERROR)
+                        notify("Error: ${ex.message}", NotificationType.ERROR)
                     }
                 }
             }
@@ -235,7 +235,7 @@ class VersionManagerPanel(private val project: Project) : JPanel(BorderLayout())
             return bundledPhp.toString()
         }
 
-        indicator.text = "PHP introuvable - telechargement automatique..."
+        indicator.text = "PHP not found - automatic download..."
         val phpDir = PhpDownloadService.getDefaultPhpDirectory(baseDir)
         val phpExe = phpDownloadService.downloadPhp(phpDir) { msg -> indicator.text = msg }
 
@@ -258,8 +258,8 @@ class VersionManagerPanel(private val project: Project) : JPanel(BorderLayout())
 
     private fun refreshStatusLabel() {
         val s = settings.getState()
-        statusLabel.text = if (s.activeReleaseTag.isBlank()) "Aucune version active."
-        else "Version active : ${s.activeReleaseTag}  —  ${s.activeArtifactName}"
+        statusLabel.text = if (s.activeReleaseTag.isBlank()) "No active version."
+        else "Active version: ${s.activeReleaseTag}  —  ${s.activeArtifactName}"
     }
 
     private fun refreshPhpStatus() {
@@ -267,8 +267,8 @@ class VersionManagerPanel(private val project: Project) : JPanel(BorderLayout())
         val php = s.phpExecutable.trim()
         phpStatusLabel.text = when {
             php.isNotBlank() && phpDownloadService.isPhpAvailable(php) -> "PHP : $php"
-            phpDownloadService.isPhpInPath() -> "PHP : detecte dans le PATH"
-            else -> "PHP : sera telecharge automatiquement au premier usage"
+            phpDownloadService.isPhpInPath() -> "PHP: detected in PATH"
+            else -> "PHP: will be downloaded automatically on first use"
         }
     }
 
@@ -342,9 +342,9 @@ private class SettingsDialog(private val settings: VersionSettingsService) :
         row("Owner GitHub :", ownerField, 0)
         row("Depot GitHub :", repoField, 1)
         row("Token GitHub (optionnel) :", tokenField, 2)
-        row("Executable PHP :", phpField, 3, "Laisser vide pour telechargement automatique")
-        row("Dossier de telechargement :", downloadDirField, 4)
-        row("Dossier d'extraction :", extractDirField, 5)
+        row("PHP executable:", phpField, 3, "Leave empty for automatic download")
+        row("Download directory:", downloadDirField, 4)
+        row("Extraction directory:", extractDirField, 5)
 
         return panel
     }

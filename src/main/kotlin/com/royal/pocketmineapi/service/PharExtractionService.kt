@@ -14,11 +14,11 @@ internal class PharExtractionService {
         phpExecutable: String
     ): Path {
         if (!Files.exists(pharFile)) {
-            throw IllegalStateException("Fichier PHAR introuvable: $pharFile")
+            throw IllegalStateException("PHAR file not found: $pharFile")
         }
 
         if (phpExecutable.isBlank()) {
-            throw IllegalStateException("Le chemin vers PHP CLI est vide.")
+            throw IllegalStateException("The PHP CLI path is empty.")
         }
 
         Files.createDirectories(destinationDir)
@@ -44,7 +44,7 @@ internal class PharExtractionService {
         val exitCode = process.waitFor()
 
         if (exitCode != 0 || !output.contains("OK")) {
-            throw IllegalStateException("Erreur extraction PHAR:\n$output")
+            throw IllegalStateException("PHAR extraction error:\n$output")
         }
 
         logger.info("PHAR extrait vers: $destinationDir")

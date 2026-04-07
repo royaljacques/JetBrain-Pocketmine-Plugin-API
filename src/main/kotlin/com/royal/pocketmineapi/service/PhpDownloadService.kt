@@ -1,143 +1,157 @@
 package com.royal.pocketmineapi.service
 
-import com.intellij.openapi.diagnostic.thisLogger
+import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
-import java.time.Duration
 import java.util.zip.ZipInputStream
 
-internal class PhpDownloadService {
+class PhpDownloadService {
 
-    private val logger = thisLogger()
+    enum class PhpBranch(val version: String, val toolset: String) {
+        PHP_83("8.3", "vs16"),
+        PHP_84("8.4", "vs17")
+    }
 
-    private val client: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(20))
+    private val httpClient = HttpClient.newBuilder()
         .followRedirects(HttpClient.Redirect.NORMAL)
         .build()
 
-    companion object {
+    fun downloadPhp(
+        destinationDir: Path,
+        branch: PhpBranch = PhpBranch.PHP_84,
+        nts: Boolean = false,
+        x64: Boolean = true,
+        progress: ((String) -> Unit)? = null
+    ): Path {
+        if (!isWindows()) {
+            throw IllegalStateException(
+                "Automatic PHP download is only supported on Windows. Please configure the PHP executable manually."
+            )
+        }
 
-        private const val PHP_DOWNLOAD_URL =
-            "https://windows.php.net/downloads/releases/php-8.3.19-Win32-vs16-x64.zip"
+        val downloadUrl = buildPhpDownloadUrl(branch, nts, x64)
+        Files.createDirectories(destinationDir)
+        val zipPath = destinationDir.resolveSibling("php-download.zip")
 
-        private const val PHP_VERSION = "8.3.19"
+        try {
+            progress?.invoke("Downloading PHP...")
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create(downloadUrl))
+                .GET()
+                .build()
 
-        fun getDefaultPhpDirectory(baseDir: Path): Path =
-            baseDir.resolve("php-$PHP_VERSION")
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream())
 
-        fun getDefaultPhpExecutable(baseDir: Path): Path =
-            getDefaultPhpDirectory(baseDir).resolve("php.exe")
+            if (response.statusCode() !in 200..299) {
+                throw IllegalStateException("PHP download failed (${response.statusCode()}) from $downloadUrl")
+            }
+
+            Files.copy(response.body(), zipPath, StandardCopyOption.REPLACE_EXISTING)
+
+            progress?.invoke("Extracting PHP...")
+            unzip(zipPath, destinationDir)
+
+            val phpExecutable = getPhpExecutable(destinationDir)
+            if (!Files.exists(phpExecutable)) {
+                throw IllegalStateException("php.exe was not found after extraction.")
+            }
+
+            progress?.invoke("PHP installed.")
+            return phpExecutable
+        } finally {
+            try {
+                Files.deleteIfExists(zipPath)
+            } catch (_: Exception) {
+            }
+        }
     }
 
-    /**
-     * Vérifie si php.exe est accessible (soit dans le PATH, soit au chemin fourni).
-     */
-    internal fun isPhpAvailable(phpExecutable: String): Boolean {
-        if (phpExecutable.isBlank()) return isPhpInPath()
-        val file = java.io.File(phpExecutable)
-        return file.exists() && file.canExecute()
-    }
+    fun isPhpAvailable(executable: String): Boolean {
+        if (executable.isBlank()) return false
 
-    internal fun isPhpInPath(): Boolean {
+        val candidate = executable.trim()
+        if (candidate.equals("php", ignoreCase = true)) {
+            return isPhpInPath()
+        }
+
+        val path = Paths.get(candidate)
+        if (!Files.exists(path) || !Files.isRegularFile(path)) return false
+
         return try {
-            val process = ProcessBuilder("php", "-r", "echo 1;")
+            val process = ProcessBuilder(candidate, "-v")
                 .redirectErrorStream(true)
                 .start()
-            val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
-            process.waitFor() == 0 && output == "1"
-        } catch (e: Exception) {
+            val exitCode = process.waitFor()
+            exitCode == 0
+        } catch (_: Exception) {
             false
         }
     }
 
-    /**
-     * Télécharge et extrait PHP dans [destinationDir].
-     * Retourne le chemin vers php.exe.
-     */
-    internal fun downloadPhp(
-        destinationDir: Path,
-        onProgress: (String) -> Unit = {}
-    ): Path {
-        Files.createDirectories(destinationDir)
-
-        val zipPath = destinationDir.parent.resolve("php-download.zip")
-
-        onProgress("Téléchargement de PHP $PHP_VERSION...")
-        logger.info("Téléchargement PHP depuis $PHP_DOWNLOAD_URL")
-
-        val request = HttpRequest.newBuilder()
-            .uri(URI.create(PHP_DOWNLOAD_URL))
-            .timeout(Duration.ofMinutes(5))
-            .header("User-Agent", "PocketMineAPI-JetBrains-Plugin")
-            .GET()
-            .build()
-
-        val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
-
-        if (response.statusCode() !in 200..299) {
-            throw IllegalStateException("Échec téléchargement PHP (${response.statusCode()})")
+    fun isPhpInPath(): Boolean {
+        return try {
+            val command = if (isWindows()) listOf("where", "php") else listOf("which", "php")
+            val process = ProcessBuilder(command)
+                .redirectErrorStream(true)
+                .start()
+            val exitCode = process.waitFor()
+            exitCode == 0
+        } catch (_: Exception) {
+            false
         }
-
-        response.body().use { input ->
-            Files.copy(input, zipPath, StandardCopyOption.REPLACE_EXISTING)
-        }
-
-        onProgress("Extraction de PHP...")
-        extractZip(zipPath, destinationDir)
-
-        Files.deleteIfExists(zipPath)
-
-        val phpExe = destinationDir.resolve("php.exe")
-        if (!Files.exists(phpExe)) {
-            throw IllegalStateException("php.exe introuvable après extraction dans $destinationDir")
-        }
-
-        ensurePharEnabled(destinationDir)
-
-        logger.info("PHP installé: $phpExe")
-        return phpExe
     }
 
-    private fun extractZip(zipFile: Path, destination: Path) {
+    private fun buildPhpDownloadUrl(
+        branch: PhpBranch,
+        nts: Boolean,
+        x64: Boolean
+    ): String {
+        val ntsPart = if (nts) "-nts" else ""
+        val archPart = if (x64) "x64" else "x86"
+        val fileName = "php-${branch.version}$ntsPart-Win32-${branch.toolset}-$archPart-latest.zip"
+        return "https://downloads.php.net/~windows/releases/latest/$fileName"
+    }
+
+    private fun unzip(zipFile: Path, targetDir: Path) {
         ZipInputStream(Files.newInputStream(zipFile)).use { zis ->
             var entry = zis.nextEntry
             while (entry != null) {
-                val target = destination.resolve(entry.name)
+                val newPath = zipSlipProtect(entry, targetDir)
                 if (entry.isDirectory) {
-                    Files.createDirectories(target)
+                    Files.createDirectories(newPath)
                 } else {
-                    Files.createDirectories(target.parent)
-                    Files.copy(zis, target, StandardCopyOption.REPLACE_EXISTING)
+                    Files.createDirectories(newPath.parent)
+                    Files.copy(zis, newPath, StandardCopyOption.REPLACE_EXISTING)
                 }
-                zis.closeEntry()
                 entry = zis.nextEntry
             }
         }
     }
 
-    private fun ensurePharEnabled(phpDir: Path) {
-        val iniDev = phpDir.resolve("php.ini-development")
-        val ini = phpDir.resolve("php.ini")
-
-        if (!Files.exists(ini)) {
-            if (Files.exists(iniDev)) {
-                Files.copy(iniDev, ini)
-            } else {
-                Files.writeString(ini, "[PHP]\nextension_dir = \"ext\"\nphar.readonly = Off\n")
-                return
-            }
+    private fun zipSlipProtect(entry: java.util.zip.ZipEntry, targetDir: Path): Path {
+        val resolvedPath = targetDir.resolve(entry.name).normalize()
+        if (!resolvedPath.startsWith(targetDir.normalize())) {
+            throw IOException("Invalid ZIP entry: ${entry.name}")
         }
-
-        var content = Files.readString(ini)
-        content = content.replace(Regex("(?m)^;?phar\\.readonly\\s*=.*$"), "phar.readonly = Off")
-        if (!content.contains("phar.readonly")) {
-            content += "\nphar.readonly = Off\n"
-        }
-        Files.writeString(ini, content)
+        return resolvedPath
     }
+
+    private fun isWindows(): Boolean {
+        return System.getProperty("os.name").lowercase().contains("win")
+    }
+
+    companion object {
+        fun getDefaultPhpDirectory(baseDir: Path): Path = baseDir.resolve("php")
+
+        fun getDefaultPhpExecutable(baseDir: Path): Path =
+            getDefaultPhpDirectory(baseDir).resolve("php.exe")
+    }
+
+    fun getPhpExecutable(baseDir: Path): Path = baseDir.resolve("php.exe")
 }

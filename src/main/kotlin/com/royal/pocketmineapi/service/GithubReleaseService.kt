@@ -44,7 +44,7 @@ internal class GithubReleaseService {
             client.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString())
 
         if (response.statusCode() !in 200..299) {
-            throw IllegalStateException("GitHub API a répondu ${response.statusCode()} : ${response.body()}")
+            throw IllegalStateException("GitHub API responded with ${response.statusCode()} : ${response.body()}")
         }
 
         return json.decodeFromString(
@@ -76,14 +76,14 @@ internal class GithubReleaseService {
             client.send(request, HttpResponse.BodyHandlers.ofInputStream())
 
         if (response.statusCode() !in 200..299) {
-            throw IllegalStateException("Téléchargement impossible pour ${asset.name} (${response.statusCode()})")
+            throw IllegalStateException("Unable to download ${asset.name} (${response.statusCode()})")
         }
 
         response.body().use { input: InputStream ->
             Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING)
         }
 
-        logger.info("Asset téléchargé: $target")
+        logger.info("Downloaded asset: $target")
         return target
     }
 }

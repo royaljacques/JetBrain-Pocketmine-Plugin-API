@@ -27,6 +27,5 @@
                 factoryClass="com.royal.pocketmineapi.ui.VersionToolWindowFactory"
                 icon="/META-INF/pluginIcon.svg"
                 canCloseContents="false"/>
-
     </extensions>
 </idea-plugin>
